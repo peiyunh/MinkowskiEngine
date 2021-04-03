@@ -359,7 +359,7 @@ class CompletionNet(nn.Module):
             target = torch.zeros(len(out), dtype=torch.bool, device=out.device)
             cm = out.coordinate_manager
             strided_target_key = cm.stride(
-                target_key, out.tensor_stride[0],
+                target_key, out.tensor_stride[0], "strided_target"
             )
             kernel_map = cm.kernel_map(
                 out.coordinate_map_key,
@@ -595,16 +595,16 @@ def visualize(net, dataloader, device, config):
         in_feat = torch.ones((len(data_dict["coords"]), 1))
 
         sin = ME.SparseTensor(
-            feats=in_feat,
-            coords=data_dict["coords"],
-        ).to(device)
+            features=in_feat,
+            coordinates=data_dict["coords"],
+            device=device,
+        )
 
         # Generate target sparse tensor
-        cm = sin.coords_man
-        target_key = cm.create_coords_key(
-            ME.utils.batched_coordinates(data_dict["xyzs"]),
-            force_creation=True,
-            allow_duplicate_coords=True,
+        cm = sin.coordinate_manager
+        target_key, _ = cm.insert_and_map(
+            ME.utils.batched_coordinates(data_dict["xyzs"]).to(device),
+            string_id="target"
         )
 
         # Generate from a dense tensor
@@ -618,7 +618,7 @@ def visualize(net, dataloader, device, config):
 
         batch_coords, batch_feats = sout.decomposed_coordinates_and_features
         for b, (coords, feats) in enumerate(zip(batch_coords, batch_feats)):
-            pcd = PointCloud(coords)
+            pcd = PointCloud(coords.detach().cpu().numpy())
             pcd.estimate_normals()
             pcd.translate([0.6 * config.resolution, 0, 0])
             pcd.rotate(M, np.array([[0.0], [0.0], [0.0]]))
